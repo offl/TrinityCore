@@ -1761,6 +1761,18 @@ void AIGroupScript::ReplaceActionTriggers()
 
 void AIGroupScript::ResetActionTriggers()
 {
+    AIGroupTriggerList currentTriggers = sAIGroupMgr->GetScript(me->GetCurrentTriggersId());
+    mTriggers.erase(std::remove_if(mTriggers.begin(), mTriggers.end(), [&currentTriggers](ActionTriggersHolder const& holder)
+    {
+        if (!(holder.Flags & Unremovable))
+            return false;
+
+        return std::none_of(currentTriggers.begin(), currentTriggers.end(), [&holder](ActionTriggersHolder const& trigger)
+        {
+            return trigger.Id == holder.Id && trigger.Index == holder.Index;
+        });
+    }), mTriggers.end());
+
     for (ActionTriggersHolder& holder : mTriggers)
         holder.IsTriggerUsed = false;
 }

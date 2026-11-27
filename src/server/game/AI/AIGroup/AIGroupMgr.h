@@ -917,8 +917,8 @@ enum ActionTriggers
 // Custom flags, can't find anything original
 enum ActionTriggersFlags
 {
-    NotRepeatable               = 0x001,   // Trigger is not repeatable
-    Unremovable                 = 0x002,   // Trigger will be not removed when action triggers are changed
+    NotRepeatable               = 0x001,   // The trigger is not repeatable
+    Unremovable                 = 0x002,   // The trigger will not be removed when action triggers are changed. However, it is removed after evade
 
     ActionTriggersFlagsAll      = (NotRepeatable | Unremovable)
 };
