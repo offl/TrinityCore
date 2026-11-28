@@ -32,7 +32,8 @@ class TC_GAME_API AIGroup
         ~AIGroup() = default;
 
         static AIGroup* GetAIGroup(Creature* creature);
-        static AIGroup* GetAIGroupByMainMemberGuid(Creature* creature, ObjectGuid::LowType mainMemberGuid);
+        static AIGroup* GetAIGroup(GameObject* gameObject);
+        static AIGroup* GetAIGroupByMainMemberGuid(Map* map, ObjectGuid::LowType mainMemberGuid, AIGroupMemberType mainMemberType);
         static void AddAIGroup(std::unique_ptr<AIGroup> group);
         static void AddUnitToAIGroup(WorldObject* unit);
         static void RemoveUnitFromAIGroup(WorldObject* unit);
@@ -42,6 +43,7 @@ class TC_GAME_API AIGroup
         Map* GetMap() const { return _map; }
 
         ObjectGuid::LowType GetMainMemberGuid() const { return _mainMemberGuid; }
+        AIGroupMemberType GetMainMemberType() const { return _mainMemberType; }
         uint32 GetCurrentActionSet() const { return _currentActionSet; }
         AIGroupScript* GetScript() { return &_script; }
         std::vector<WorldObject*> GetMembers(AIGroupUnit unit, AIGroupMemberType memberType) const;
@@ -50,6 +52,7 @@ class TC_GAME_API AIGroup
 
     private:
         ObjectGuid::LowType _mainMemberGuid = 0;
+        AIGroupMemberType _mainMemberType = AIGroupMemberType::Creature;
         uint32 _currentActionSet = 0;
         Map* _map = nullptr;
         AIGroupScript _script;

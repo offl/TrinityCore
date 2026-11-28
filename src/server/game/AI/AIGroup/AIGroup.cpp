@@ -193,17 +193,37 @@ AIGroupGameObject::AIGroupGameObject(GameObject* go) : GameObjectAI(go) { }
 
 AIGroupScript* AIGroupGameObject::GetScript()
 {
+    if (AIGroup* group = GetGroup())
+    {
+        group->GetScript()->SetActor(me);
+        return group->GetScript();
+    }
+
     return &_script;
+}
+
+AIGroup* AIGroupGameObject::GetGroup() const
+{
+    return AIGroup::GetAIGroup(me);
 }
 
 void AIGroupGameObject::InitializeAI()
 {
-    GetScript()->OnInitialize(me);
+    if (AIGroup* group = GetGroup())
+    {
+        group->GetScript()->SetActor(me);
+        return;
+    }
+
+    _script.OnInitialize(me);
 }
 
 void AIGroupGameObject::UpdateAI(uint32 diff)
 {
-    GetScript()->OnUpdate(diff);
+    if (AIGroup* group = GetGroup())
+        group->GetScript()->SetActor(me);
+    else
+        GetScript()->OnUpdate(diff);
 }
 
 void AIGroupGameObject::OnActionTriggered(GameObjectActions action, WorldObject* user, uint32 actionParam1, uint32 actionParam2)

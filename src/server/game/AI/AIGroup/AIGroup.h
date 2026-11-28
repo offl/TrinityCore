@@ -137,6 +137,7 @@ class TC_GAME_API AIGroupGameObject : public GameObjectAI
         void OnActionTriggered(GameObjectActions action, WorldObject* user, uint32 actionParam1, uint32 actionParam2) override;
 
     private:
+        AIGroup* GetGroup() const;
         AIGroupScript _script;
 };
 

@@ -189,7 +189,10 @@ void AIGroupScript::MovementInform(uint32 type, uint32 id)
 
 void AIGroupScript::PerformActionSet(uint32 actionSetId, ObjectGuid invokerGuid, bool triggerActions, bool allowWhileDead)
 {
-    if (me && !me->IsAlive() && !allowWhileDead && !(sAIGroupMgr->GetActionSetFlags(actionSetId) & uint32(ActionSetFlags::AllowAllActionsWhileDead)))
+    AIGroupMemberType const actionMemberType = m_group ? m_group->GetMainMemberType() :
+        (me ? AIGroupMemberType::Creature : AIGroupMemberType::GameObject);
+    if (actionMemberType == AIGroupMemberType::Creature && me && !me->IsAlive() && !allowWhileDead &&
+        !(sAIGroupMgr->GetActionSetFlags(actionSetId) & uint32(ActionSetFlags::AllowAllActionsWhileDead)))
         return;
 
     AIGroupActionSet actionSet = sAIGroupMgr->GetActionSet(actionSetId);
@@ -322,9 +325,13 @@ float AIGroupScript::GetStringIdSearchRadius(ActionSetActionHolder const& action
 
 bool AIGroupScript::ExecuteAction(ActionSetActionHolder const& action, ObjectGuid const& invokerGuid)
 {
+    AIGroupMemberType const memberType = m_group ? m_group->GetMainMemberType() :
+        (me ? AIGroupMemberType::Creature : AIGroupMemberType::GameObject);
+    WorldObject* const fallbackActor = memberType == AIGroupMemberType::Creature ? static_cast<WorldObject*>(me) : static_cast<WorldObject*>(go);
+
     if (!m_group)
     {
-        if (!me && !go)
+        if (!fallbackActor)
         {
             TC_LOG_ERROR("sql.sql", "AIGroupScript::ExecuteAction: action type {} has no actor, action set {} index {}, skipped.",
                 action.Type, action.Id, action.Index);
@@ -337,18 +344,14 @@ bool AIGroupScript::ExecuteAction(ActionSetActionHolder const& action, ObjectGui
     bool actionFinished = true;
 
     std::vector<WorldObject*> members;
-    AIGroupMemberType const memberType = me ? AIGroupMemberType::Creature : AIGroupMemberType::GameObject;
-
     if (IsActionGroupWide(action.Type))
         members = m_group->GetMembers(AIGroupUnit::AllUnits, memberType);
     else
         members = m_group->GetMembers(AIGroupUnit(action.Unit), memberType);
 
-    WorldObject* const previousActor = me ? static_cast<WorldObject*>(me) : static_cast<WorldObject*>(go);
-
-    if (members.empty() && me && (action.Unit == uint8(AIGroupUnit::RandomUnit) || action.Unit == uint8(AIGroupUnit::AllUnits)) &&
-        !sAIGroupMgr->GetGroupMembers(m_group->GetMainMemberGuid()))
-        members.push_back(me);
+    if (members.empty() && fallbackActor && (action.Unit == uint8(AIGroupUnit::RandomUnit) || action.Unit == uint8(AIGroupUnit::AllUnits)) &&
+        !sAIGroupMgr->HasGroupMembers(m_group->GetMainMemberGuid(), m_group->GetMainMemberType()))
+        members.push_back(fallbackActor);
 
     for (WorldObject* member : members)
     {
@@ -356,7 +359,7 @@ bool AIGroupScript::ExecuteAction(ActionSetActionHolder const& action, ObjectGui
         actionFinished = ExecuteActionForActor(action, invokerGuid) && actionFinished;
     }
 
-    SetActor(previousActor);
+    SetActor(fallbackActor);
     return actionFinished;
 }
 
@@ -1788,7 +1791,12 @@ WorldObject* AIGroupScript::GetBaseObject() const
         object = go;
     else if (m_group)
         if (Map* map = m_group->GetMap())
-            object = map->GetCreatureBySpawnId(m_group->GetMainMemberGuid());
+        {
+            if (m_group->GetMainMemberType() == AIGroupMemberType::Creature)
+                object = map->GetCreatureBySpawnId(m_group->GetMainMemberGuid());
+            else
+                object = map->GetGameObjectBySpawnId(m_group->GetMainMemberGuid());
+        }
 
     return object;
 }

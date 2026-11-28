@@ -63,21 +63,33 @@ AIGroup* AIGroup::GetAIGroup(Creature* creature)
     if (!creature)
         return nullptr;
 
-    if (AIGroup* group = GetAIGroupByMainMemberGuid(creature, creature->GetSpawnId()))
+    if (AIGroup* group = GetAIGroupByMainMemberGuid(creature->GetMap(), creature->GetSpawnId(), AIGroupMemberType::Creature))
         return group;
 
-    ObjectGuid::LowType mainMemberGuid = sAIGroupMgr->GetMainMemberGuid(creature->GetSpawnId(), AIGroupMemberType::Creature);
-    return mainMemberGuid ? GetAIGroupByMainMemberGuid(creature, mainMemberGuid) : nullptr;
+    AIGroupMainMemberData mainMember = sAIGroupMgr->GetMainMember(creature->GetSpawnId(), AIGroupMemberType::Creature);
+    return mainMember.Guid ? GetAIGroupByMainMemberGuid(creature->GetMap(), mainMember.Guid, mainMember.Type) : nullptr;
 }
 
-AIGroup* AIGroup::GetAIGroupByMainMemberGuid(Creature* creature, ObjectGuid::LowType mainMemberGuid)
+AIGroup* AIGroup::GetAIGroup(GameObject* gameObject)
 {
-    if (!creature || !creature->GetMap())
+    if (!gameObject)
+        return nullptr;
+
+    if (AIGroup* group = GetAIGroupByMainMemberGuid(gameObject->GetMap(), gameObject->GetSpawnId(), AIGroupMemberType::GameObject))
+        return group;
+
+    AIGroupMainMemberData mainMember = sAIGroupMgr->GetMainMember(gameObject->GetSpawnId(), AIGroupMemberType::GameObject);
+    return mainMember.Guid ? GetAIGroupByMainMemberGuid(gameObject->GetMap(), mainMember.Guid, mainMember.Type) : nullptr;
+}
+
+AIGroup* AIGroup::GetAIGroupByMainMemberGuid(Map* map, ObjectGuid::LowType mainMemberGuid, AIGroupMemberType mainMemberType)
+{
+    if (!map)
         return nullptr;
 
     auto const [groupBegin, groupEnd] = AIGroupMaps.equal_range(mainMemberGuid);
     for (auto groupItr = groupBegin; groupItr != groupEnd; ++groupItr)
-        if (groupItr->second->GetMap() == creature->GetMap())
+        if (groupItr->second->GetMap() == map && groupItr->second->GetMainMemberType() == mainMemberType)
             return groupItr->second.get();
 
     return nullptr;
@@ -102,17 +114,20 @@ void AIGroup::AddUnitToAIGroup(WorldObject* unit)
     if (!spawnId)
         return;
 
-    auto const [groupBegin, groupEnd] = AIGroupMaps.equal_range(spawnId);
-    for (auto groupItr = groupBegin; groupItr != groupEnd; ++groupItr)
-        if (groupItr->second->GetMap() == unit->GetMap())
-        {
-            groupItr->second->GetScript()->SetActor(unit);
-            TriggerSpawnEvents(unit, groupItr->second->GetScript());
-            return;
-        }
+    AIGroupMemberType memberType = creature ? AIGroupMemberType::Creature : AIGroupMemberType::GameObject;
+    AIGroupMainMemberData mainMember = sAIGroupMgr->GetMainMember(spawnId, memberType);
+    if (!mainMember.Guid)
+        mainMember = { spawnId, memberType };
+
+    if (AIGroup* group = GetAIGroupByMainMemberGuid(unit->GetMap(), mainMember.Guid, mainMember.Type))
+    {
+        group->GetScript()->SetActor(unit);
+        TriggerSpawnEvents(unit, group->GetScript());
+        return;
+    }
 
     bool hasAIGroupAI = (creature && creature->GetAIName() == "AIGroup") || (gameObject && gameObject->GetAIName() == "AIGroup");
-    if (!sAIGroupMgr->GetGroupMembers(spawnId) && !hasAIGroupAI && (!creature || !creature->GetNativeTriggersId()))
+    if (!sAIGroupMgr->HasGroupMembers(spawnId, memberType) && !hasAIGroupAI && (!creature || !creature->GetNativeTriggersId()))
         return;
 
     auto group = std::make_unique<AIGroup>();
@@ -146,24 +161,33 @@ void AIGroup::RemoveUnitFromAIGroup(WorldObject* unit)
     if (!spawnId)
         return;
 
-    ObjectGuid::LowType mainMemberGuid = spawnId;
-    if (!creature || !GetAIGroupByMainMemberGuid(creature, mainMemberGuid))
-        mainMemberGuid = sAIGroupMgr->GetMainMemberGuid(spawnId, memberType);
+    AIGroupMainMemberData mainMember = sAIGroupMgr->GetMainMember(spawnId, memberType);
+    if (!mainMember.Guid)
+        mainMember = { spawnId, memberType };
 
-    auto [groupBegin, groupEnd] = AIGroupMaps.equal_range(mainMemberGuid);
+    auto [groupBegin, groupEnd] = AIGroupMaps.equal_range(mainMember.Guid);
     for (auto groupItr = groupBegin; groupItr != groupEnd; ++groupItr)
     {
         AIGroup* group = groupItr->second.get();
-        if (group->GetMap() != unit->FindMap())
+        if (group->GetMap() != unit->FindMap() || group->GetMainMemberType() != mainMember.Type)
             continue;
 
-        bool hasRemainingMembers = group->GetMainMemberGuid() != spawnId &&
-            group->GetMap()->GetCreatureBySpawnId(group->GetMainMemberGuid());
+        bool hasRemainingMembers = false;
+        if (group->GetMainMemberGuid() != spawnId || group->GetMainMemberType() != memberType)
+        {
+            if (group->GetMainMemberType() == AIGroupMemberType::Creature)
+                hasRemainingMembers = group->GetMap()->GetCreatureBySpawnId(group->GetMainMemberGuid());
+            else
+                hasRemainingMembers = group->GetMap()->GetGameObjectBySpawnId(group->GetMainMemberGuid());
+        }
 
         std::vector<AIGroupMemberData> const* memberData = sAIGroupMgr->GetGroupMembers(group->GetMainMemberGuid());
         if (memberData)
             for (AIGroupMemberData const& member : *memberData)
             {
+                if (member.MemberType != group->GetMainMemberType())
+                    continue;
+
                 if (member.MemberGuid == spawnId && member.MemberType == memberType)
                     continue;
 
@@ -195,6 +219,7 @@ bool AIGroup::Create(WorldObject* mainMember)
     if (!_mainMemberGuid)
         return false;
 
+    _mainMemberType = creature ? AIGroupMemberType::Creature : AIGroupMemberType::GameObject;
     SetMap(mainMember->GetMap());
     _currentActionSet = 0;
     _script.SetActor(mainMember);
@@ -207,7 +232,10 @@ void AIGroup::Update(uint32 diff)
     if (!GetMap())
         return;
 
-    if (Creature* mainMember = GetMap()->GetCreatureBySpawnId(_mainMemberGuid))
+    WorldObject* mainMember = _mainMemberType == AIGroupMemberType::Creature ?
+        static_cast<WorldObject*>(GetMap()->GetCreatureBySpawnId(_mainMemberGuid)) :
+        static_cast<WorldObject*>(GetMap()->GetGameObjectBySpawnId(_mainMemberGuid));
+    if (mainMember)
     {
         _script.SetActor(mainMember);
         _script.OnUpdate(diff);

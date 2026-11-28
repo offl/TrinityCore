@@ -1020,6 +1020,12 @@ struct AIGroupMemberData
     AIGroupUnit Unit;
 };
 
+struct AIGroupMainMemberData
+{
+    ObjectGuid::LowType Guid = 0;
+    AIGroupMemberType Type = AIGroupMemberType::Creature;
+};
+
 // From g_eventTypes
 enum class EventTypes : uint8
 {
@@ -1588,14 +1594,27 @@ class TC_GAME_API AIGroupMgr
             return it != _groupMembers.end() ? &it->second : nullptr;
         }
 
-        ObjectGuid::LowType GetMainMemberGuid(ObjectGuid::LowType memberGuid, AIGroupMemberType memberType) const
+        bool HasGroupMembers(ObjectGuid::LowType mainMemberGuid, AIGroupMemberType memberType) const
+        {
+            std::vector<AIGroupMemberData> const* members = GetGroupMembers(mainMemberGuid);
+            if (!members)
+                return false;
+
+            for (AIGroupMemberData const& member : *members)
+                if (member.MemberType == memberType)
+                    return true;
+
+            return false;
+        }
+
+        AIGroupMainMemberData GetMainMember(ObjectGuid::LowType memberGuid, AIGroupMemberType memberType) const
         {
             auto memberItr = _mainMemberGuidByMember.find(memberGuid);
             if (memberItr == _mainMemberGuidByMember.end())
-                return 0;
+                return {};
 
             auto typeItr = memberItr->second.find(memberType);
-            return typeItr != memberItr->second.end() ? typeItr->second : 0;
+            return typeItr != memberItr->second.end() ? AIGroupMainMemberData{ typeItr->second, memberType } : AIGroupMainMemberData{};
         }
 
         AIGroupUnit GetAIGroupUnit(ObjectGuid::LowType memberGuid, AIGroupMemberType memberType) const

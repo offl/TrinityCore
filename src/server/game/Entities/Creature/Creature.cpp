@@ -887,7 +887,7 @@ void Creature::Update(uint32 diff)
     }
 
     if (m_spawnId)
-        if (AIGroup* group = AIGroup::GetAIGroupByMainMemberGuid(this, m_spawnId))
+        if (AIGroup* group = AIGroup::GetAIGroupByMainMemberGuid(GetMap(), m_spawnId, AIGroupMemberType::Creature))
             group->Update(diff);
 }
 

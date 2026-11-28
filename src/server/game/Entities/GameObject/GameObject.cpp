@@ -463,6 +463,10 @@ void GameObject::Update(uint32 diff)
     else if (!AIM_Initialize())
         TC_LOG_ERROR("misc", "Could not initialize GameObjectAI");
 
+    if (m_spawnId)
+        if (AIGroup* group = AIGroup::GetAIGroupByMainMemberGuid(GetMap(), m_spawnId, AIGroupMemberType::GameObject))
+            group->Update(diff);
+
     if (m_despawnDelay)
     {
         if (m_despawnDelay > diff)
