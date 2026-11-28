@@ -98,8 +98,8 @@ void AIGroupCreature::EnterEvadeMode(EvadeReason why)
 
 void AIGroupCreature::JustDied(Unit* killer)
 {
-    GetScript()->NotifyTriggers(ActionTriggers::OnDeath, killer);
     GetScript()->TerminateActionSets();
+    GetScript()->NotifyTriggers(ActionTriggers::OnDeath, killer);
 }
 
 void AIGroupCreature::SpellHit(WorldObject* caster, SpellInfo const* spellInfo)

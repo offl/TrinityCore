@@ -187,9 +187,9 @@ void AIGroupScript::MovementInform(uint32 type, uint32 id)
     }
 }
 
-void AIGroupScript::PerformActionSet(uint32 actionSetId, ObjectGuid invokerGuid, bool triggerActions)
+void AIGroupScript::PerformActionSet(uint32 actionSetId, ObjectGuid invokerGuid, bool triggerActions, bool allowWhileDead)
 {
-    if (me && !me->IsAlive() && !(sAIGroupMgr->GetActionSetFlags(actionSetId) & uint32(ActionSetFlags::AllowAllActionsWhileDead)))
+    if (me && !me->IsAlive() && !allowWhileDead && !(sAIGroupMgr->GetActionSetFlags(actionSetId) & uint32(ActionSetFlags::AllowAllActionsWhileDead)))
         return;
 
     AIGroupActionSet actionSet = sAIGroupMgr->GetActionSet(actionSetId);
@@ -2212,7 +2212,7 @@ void AIGroupScript::TryPerformActionSet(ActionTriggersHolder& holder, WorldObjec
         holder.IsTriggerUsed = true;
 
     PerformActionSet(holder.ActionSetId, object ? object->GetGUID() : ObjectGuid::Empty,
-        holder.TriggerId == OnCombatTrigger || holder.TriggerId == OnGeneralTrigger);
+        holder.TriggerId == OnCombatTrigger || holder.TriggerId == OnGeneralTrigger, holder.TriggerId == OnDeath);
 }
 
 void AIGroupScript::RecalcTimer(ActionTriggersHolder& holder)
