@@ -196,17 +196,18 @@ void AIGroupScript::PerformActionSet(uint32 actionSetId, ObjectGuid invokerGuid,
     if (actionSet.empty())
         return;
 
-    mActionSets.erase(std::remove_if(mActionSets.begin(), mActionSets.end(), [actionSetId](AIGroupActiveActionSet const& activeActionSet)
-    {
-        if (activeActionSet.Id == actionSetId)
-            return false;
-
-        return !(sAIGroupMgr->GetActionSetFlags(activeActionSet.Id) & uint32(ActionSetFlags::Resumable));
-    }), mActionSets.end());
-
     for (AIGroupActiveActionSet& activeActionSet : mActionSets)
         if (activeActionSet.Id == actionSetId)
             return;
+
+    uint8 actionSetPriority = sAIGroupMgr->GetPriorityPercentForPriorityType(ActionSetPriorityType(sAIGroupMgr->GetActionSetPriority(actionSetId)));
+    mActionSets.erase(std::remove_if(mActionSets.begin(), mActionSets.end(), [actionSetPriority](AIGroupActiveActionSet const& activeActionSet)
+    {
+        if (sAIGroupMgr->GetActionSetFlags(activeActionSet.Id) & uint32(ActionSetFlags::Resumable))
+            return false;
+
+        return actionSetPriority > sAIGroupMgr->GetPriorityPercentForPriorityType(ActionSetPriorityType(sAIGroupMgr->GetActionSetPriority(activeActionSet.Id)));
+    }), mActionSets.end());
 
     mActionSets.emplace_back(actionSetId, std::move(actionSet), invokerGuid, triggerActions);
 }
